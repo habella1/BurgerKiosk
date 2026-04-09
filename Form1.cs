@@ -98,6 +98,9 @@ namespace BurgerKiosk
                 {
                     rb.TabStop = true;
                     rb.Enabled = true;
+                    // update order immediately when menu selection changes
+                    rb.CheckedChanged -= MenuRadio_CheckedChanged;
+                    rb.CheckedChanged += MenuRadio_CheckedChanged;
                 }
             }
             // Ensure no radio button is checked at startup
@@ -114,6 +117,9 @@ namespace BurgerKiosk
                 {
                     cb.TabStop = true;
                     cb.Enabled = true;
+                    // update order immediately when option toggles
+                    cb.CheckedChanged -= OptionCheck_CheckedChanged;
+                    cb.CheckedChanged += OptionCheck_CheckedChanged;
                 }
             }
             lstOrder.TabStop = true;
@@ -125,6 +131,76 @@ namespace BurgerKiosk
             btnInit.TabStop = true;
 
             // Do not force focus to a RadioButton here so the initial state shows no menu selected.
+        }
+
+        // Update ListBox and total label immediately based on current selections
+        private void UpdateOrderDisplay()
+        {
+            lstOrder.Items.Clear();
+            int totalCost = 0;
+
+            // 메뉴
+            if (rdoHamBurger.Checked)
+            {
+                lstOrder.Items.Add("햄버거 5,000원");
+                totalCost += 5000;
+            }
+            else if (rdoBulgogiBurger.Checked)
+            {
+                lstOrder.Items.Add("불고기버거 4,000원");
+                totalCost += 4000;
+            }
+            else if (rdoChickenBurger.Checked)
+            {
+                lstOrder.Items.Add("치킨버거 3,000원");
+                totalCost += 3000;
+            }
+
+            // 옵션
+            if (chkPotato.Checked)
+            {
+                lstOrder.Items.Add("감자튀김 2,000원");
+                totalCost += 2000;
+            }
+            if (chkCola.Checked)
+            {
+                lstOrder.Items.Add("콜라 1,500원");
+                totalCost += 1500;
+            }
+            if (chkCheese.Checked)
+            {
+                lstOrder.Items.Add("치즈 추가 500원");
+                totalCost += 500;
+            }
+            if (chkSauce.Checked)
+            {
+                lstOrder.Items.Add("소스 추가 300원");
+                totalCost += 300;
+            }
+
+            lblTotal.Text = $"총 금액: {totalCost:N0}원";
+
+            // 안내 메시지: 메뉴가 없으면 경고
+            if (!rdoHamBurger.Checked && !rdoBulgogiBurger.Checked && !rdoChickenBurger.Checked)
+            {
+                lblMessage.Text = "버거를 선택하세요!";
+            }
+            else
+            {
+                lblMessage.Text = "";
+            }
+        }
+
+        private void MenuRadio_CheckedChanged(object? sender, EventArgs e)
+        {
+            // Update display immediately when menu selection changes
+            UpdateOrderDisplay();
+        }
+
+        private void OptionCheck_CheckedChanged(object? sender, EventArgs e)
+        {
+            // Update display immediately when options change
+            UpdateOrderDisplay();
         }
 
         // 키보드 내비게이션을 위한 필드
