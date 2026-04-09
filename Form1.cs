@@ -6,6 +6,29 @@ namespace BurgerKiosk
         {
             InitializeComponent();
             this.Load += Form1_Load;
+            this.Shown += Form1_Shown;
+            // 폼에서 키 이벤트를 먼저 처리하도록 설정
+            this.KeyPreview = true;
+            this.KeyDown += Form1_KeyDown;
+        }
+
+        // 폼이 화면에 보인 직후 처리: 초기 선택(라디오) 완전 해제 및 포커스 제거
+        private void Form1_Shown(object? sender, EventArgs e)
+        {
+            // Ensure no radio button is checked after the form is shown
+            foreach (Control ctrl in groupBoxMenu.Controls)
+            {
+                if (ctrl is RadioButton rb)
+                    rb.Checked = false;
+            }
+
+            // Clear any active control after all default focus processing completes
+            BeginInvoke(() =>
+            {
+                this.ActiveControl = null;
+                // set focus to the form itself so no child control appears selected
+                this.Focus();
+            });
         }
 
         // 폼 처음 실행 시 초기화
@@ -13,6 +36,10 @@ namespace BurgerKiosk
         {
             InitializeControls();
             lblMessage.Text = "";  // 폼 로드 시 라벨 비우기
+
+            // Ensure no control in the menu is focused at startup (show no selection)
+            this.ActiveControl = null;
+            this.Focus();
         }
 
         // 라디오 버튼, 체크박스, 주문 내역, 총 금액 초기화 메서드
@@ -60,6 +87,179 @@ namespace BurgerKiosk
 
             // 숨김: 에러 메시지
             lblError.Visible = false;
+            // 그룹 박스 순서 (Tab 이동용)
+            _groupBoxes = new List<GroupBox> { groupBoxMenu, groupBoxOption, groupBoxOrder };
+            _currentGroupIndex = 0;
+
+            // Ensure controls inside groups can receive focus via keyboard
+            foreach (Control ctrl in groupBoxMenu.Controls)
+            {
+                if (ctrl is RadioButton rb)
+                {
+                    rb.TabStop = true;
+                    rb.Enabled = true;
+                }
+            }
+            // Ensure no radio button is checked at startup
+            foreach (Control ctrl in groupBoxMenu.Controls)
+            {
+                if (ctrl is RadioButton rb)
+                {
+                    rb.Checked = false;
+                }
+            }
+            foreach (Control ctrl in groupBoxOption.Controls)
+            {
+                if (ctrl is CheckBox cb)
+                {
+                    cb.TabStop = true;
+                    cb.Enabled = true;
+                }
+            }
+            lstOrder.TabStop = true;
+
+            // Ensure buttons are enabled and focusable
+            btnOrder.Enabled = true;
+            btnInit.Enabled = true;
+            btnOrder.TabStop = true;
+            btnInit.TabStop = true;
+
+            // Do not force focus to a RadioButton here so the initial state shows no menu selected.
+        }
+
+        // 키보드 내비게이션을 위한 필드
+        private List<GroupBox> _groupBoxes;
+        private int _currentGroupIndex = 0;
+
+        // 폼 전체 KeyDown 처리
+        private void Form1_KeyDown(object? sender, KeyEventArgs e)
+        {
+            // Tab: 그룹 박스 간 포커스 이동
+            if (e.KeyCode == Keys.Tab)
+            {
+                MoveToNextGroup(e.Shift);
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                return;
+            }
+
+            // 방향키: 그룹 내부 아이템 포커스 이동 (위/아래/왼/오)
+            if (e.KeyCode == Keys.Up || e.KeyCode == Keys.Down || e.KeyCode == Keys.Left || e.KeyCode == Keys.Right)
+            {
+                MoveFocusInGroup(e.KeyCode);
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                return;
+            }
+
+            // Space: 현재 포커스 항목 선택/토글 (버튼은 제외)
+            if (e.KeyCode == Keys.Space)
+            {
+                var ctl = this.ActiveControl;
+                if (ctl is RadioButton rb)
+                {
+                    rb.Checked = true;
+                }
+                else if (ctl is CheckBox cb)
+                {
+                    cb.Checked = !cb.Checked;
+                }
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                return;
+            }
+
+            // Enter: 버튼 활성화
+            if (e.KeyCode == Keys.Enter)
+            {
+                var ctl = this.ActiveControl;
+                if (ctl is Button btn)
+                {
+                    btn.PerformClick();
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
+                else
+                {
+                    // If a button appears focused but ActiveControl is not set, check focus flags
+                    if (btnOrder.Focused)
+                    {
+                        btnOrder.PerformClick();
+                        e.Handled = true;
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (btnInit.Focused)
+                    {
+                        btnInit.PerformClick();
+                        e.Handled = true;
+                        e.SuppressKeyPress = true;
+                    }
+                }
+            }
+        }
+
+        private void MoveToNextGroup(bool shift)
+        {
+            if (_groupBoxes == null || _groupBoxes.Count == 0) return;
+            // 다음 또는 이전 인덱스
+            _currentGroupIndex = (_currentGroupIndex + (shift ? -1 : 1) + _groupBoxes.Count) % _groupBoxes.Count;
+            var target = _groupBoxes[_currentGroupIndex];
+            // 그룹 내부의 첫 포커스 가능한 컨트롤로 이동
+            var first = GetFirstFocusableControl(target);
+            first?.Focus();
+        }
+
+        private bool IsControlInGroup(Control? ctl, GroupBox group)
+        {
+            if (ctl == null) return false;
+            var parent = ctl.Parent as Control;
+            while (parent != null)
+            {
+                if (parent == group) return true;
+                parent = parent.Parent as Control;
+            }
+            return false;
+        }
+
+        private Control? GetFirstFocusableControl(Control parent)
+        {
+            foreach (Control c in parent.Controls)
+            {
+                // A control is focusable when it's visible, enabled and set to receive tab stops
+                if (c.Visible && c.Enabled && c.TabStop)
+                    return c;
+            }
+            return null;
+        }
+
+        private void MoveFocusInGroup(Keys key)
+        {
+            var ctl = this.ActiveControl;
+            if (ctl == null) return;
+            // 찾을 그룹
+            var parent = ctl.Parent as Control;
+            while (parent != null && !(parent is GroupBox))
+                parent = parent.Parent as Control;
+            if (parent == null) return;
+            var group = (GroupBox)parent;
+            // 대상 수집: 같은 타입(RadioButton 또는 CheckBox)만 이동
+            List<Control> items = new List<Control>();
+            foreach (Control c in group.Controls)
+            {
+                if (!c.Visible || !c.Enabled) continue;
+                if (ctl is RadioButton && c is RadioButton) items.Add(c);
+                if (ctl is CheckBox && c is CheckBox) items.Add(c);
+                if (ctl is ListBox && c is ListBox) items.Add(c);
+            }
+            if (items.Count == 0) return;
+            int idx = items.IndexOf(ctl);
+            if (idx < 0) return;
+            int next = idx;
+            if (key == Keys.Up || key == Keys.Left)
+                next = (idx - 1 + items.Count) % items.Count;
+            else if (key == Keys.Down || key == Keys.Right)
+                next = (idx + 1) % items.Count;
+            items[next].Focus();
         }
 
         private void btnInit_Click(object sender, EventArgs e)
